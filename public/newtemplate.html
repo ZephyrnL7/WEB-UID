@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>RareIDs Panel</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+<style>
+:root {
+  --bg:#000; --s1:#0a0a0a; --s2:#111; --s3:#1a1a1a; --s4:#222;
+  --t1:#fff; --t2:rgba(255,255,255,0.5); --t3:rgba(255,255,255,0.3); --t4:rgba(255,255,255,0.15);
+  --r:12px; --rs:10px; --accent:#fff; --accent-dim:rgba(255,255,255,0.08);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{font-family:'Google Sans',sans-serif;background:var(--bg);color:var(--t1);-webkit-text-size-adjust:100%}
+body{min-height:100dvh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button,input,select,textarea{font:inherit;color:inherit;background:none;border:none;outline:none}
+button{cursor:pointer;transition:opacity .2s,background .2s,color .2s,box-shadow .2s}
+button:active{opacity:.7}
+input,select,textarea{background:var(--s3);border-radius:var(--rs);padding:12px 14px;width:100%;transition:background .25s,box-shadow .25s,border-color .25s}
+input:focus,select:focus,textarea:focus{background:var(--s4);box-shadow:0 0 0 1px var(--t4)}
+input::placeholder{color:var(--t3)}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23fff' opacity='0.3'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:12px;padding-right:36px}
+select option{background:var(--s2);color:var(--t1)}
+textarea{resize:vertical;min-height:80px}
+
+.header{position:sticky;top:0;z-index:100;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--t4)}
+.header h1{font-size:18px;font-weight:700;letter-spacing:-.02em;background:linear-gradient(135deg,var(--t1),var(--t2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.header .sub{font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+
+.tabs{display:flex;gap:4px;overflow-x:auto;padding:10px 14px;border-bottom:1px solid var(--t4);-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-shrink:0}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:10px 18px;border-radius:var(--rs);font-size:13px;font-weight:600;color:var(--t2);white-space:nowrap;transition:background .25s,color .25s,box-shadow .25s;position:relative;cursor:pointer}
+.tab:hover{background:var(--accent-dim);color:var(--t1)}
+.tab.active{background:var(--s3);color:var(--t1);box-shadow:inset 0 1px 0 var(--t4)}
+.main{flex:1;overflow-y:auto;padding:16px;width:100%;max-width:900px;margin:0 auto}
+.view{display:none;animation:fadeIn .3s ease}
+.view.active{display:block}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:20px}
+.stat-card{background:var(--s1);border-radius:var(--r);padding:16px;border:1px solid var(--t4);transition:border-color .3s,box-shadow .3s,background .3s}
+.stat-card:hover{border-color:rgba(255,255,255,.25);box-shadow:0 0 20px rgba(255,255,255,.03)}
+.stat-val{font-size:22px;font-weight:700;letter-spacing:-.02em;transition:color .3s}
+.stat-card:hover .stat-val{color:#fff}
+.stat-lbl{font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+
+.search-row{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.search-row input{flex:1}
+.btn{padding:11px 18px;border-radius:var(--rs);font-weight:600;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background .2s,color .2s,box-shadow .2s,opacity .2s}
+.btn-fill{background:var(--t1);color:#000}
+.btn-fill:hover{background:rgba(255,255,255,.85);box-shadow:0 4px 16px rgba(255,255,255,.1)}
+.btn-out{background:var(--s3);color:var(--t1)}
+.btn-out:hover{background:var(--s4);box-shadow:0 0 0 1px var(--t4)}
+.btn-ghost{color:var(--t2)}
+.btn-ghost:hover{color:var(--t1);background:var(--accent-dim)}
+.btn-sm{padding:8px 14px;font-size:12px;border-radius:8px}
+.btn-block{width:100%}
+.btn:disabled{opacity:.3;pointer-events:none}
+
+.table-wrap{background:var(--s1);border-radius:var(--r);overflow-x:auto;margin-bottom:16px;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;min-width:600px}
+th{text-align:left;padding:12px 14px;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--t4)}
+td{padding:12px 14px;font-size:13px;font-weight:500;border-bottom:1px solid var(--t4);white-space:nowrap;transition:background .2s,color .2s}
+tr:last-child td{border-bottom:none}
+tr[data-click]{cursor:pointer;transition:background .2s}
+tr[data-click]:hover{background:var(--s2)}
+tr[data-click]:active{background:var(--s3)}
+td.col-id{font-weight:700;letter-spacing:.01em}
+td.col-price{font-weight:600;color:var(--t2)}
+td.col-empty{padding:40px 14px;text-align:center;color:var(--t2);font-size:13px;font-weight:500}
+
+.pill{padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;transition:background .2s,color .2s}
+.pl-good{background:var(--s4);color:var(--t1)}
+.pl-warn{background:var(--s3);color:var(--t2)}
+.pl-bad{background:var(--s4);color:rgba(255,255,255,.6)}
+
+.drawer-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.7);display:none;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.drawer-overlay.show{display:block}
+.drawer{position:fixed;top:0;right:-100%;width:100%;max-width:500px;height:100%;background:var(--s1);z-index:201;transition:right .3s ease;display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,.5)}
+.drawer.show{right:0}
+.drawer-h{padding:16px;border-bottom:1px solid var(--t4);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.drawer-h h3{font-size:16px;font-weight:700}
+.drawer-b{flex:1;overflow-y:auto;padding:16px}
+
+.frm-group{margin-bottom:14px}
+.frm-label{display:block;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.frm-row{display:flex;gap:8px}
+.frm-row>*{flex:1}
+
+.modal-overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.modal-overlay.show{display:flex}
+.modal-box{background:var(--s1);border-radius:var(--r);padding:24px;width:100%;max-width:360px;border:1px solid var(--t4);box-shadow:0 16px 48px rgba(0,0,0,.6)}
+.modal-box h3{font-size:16px;font-weight:700;margin-bottom:8px}
+.modal-box p{font-size:12px;color:var(--t2);margin-bottom:16px;line-height:1.5}
+.modal-box .frm-group input{background:var(--s3)}
+
+.card-list{display:flex;flex-direction:column;gap:6px}
+.card-item{background:var(--s2);border-radius:var(--rs);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:500;transition:background .2s}
+.card-item:hover{background:var(--s3)}
+.card-item .c-del{color:rgba(255,255,255,.4);font-size:18px;line-height:1;cursor:pointer;padding:0 4px;transition:color .2s}
+.card-item .c-del:hover{color:var(--t1)}
+.card-item .c-del:active{color:var(--t1)}
+
+#bulk-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--s1);padding:12px 20px;border-radius:50px;display:none;align-items:center;gap:16px;z-index:150;border:1px solid var(--t4);box-shadow:0 8px 32px rgba(0,0,0,.5)}
+#bulk-bar.show{display:flex}
+#bulk-bar .bulk-btn{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;background:var(--s3);color:var(--t1);transition:background .2s}
+#bulk-bar .bulk-btn:hover{background:var(--s4)}
+#bulk-bar .bulk-delete{color:rgba(255,255,255,.6)}
+
+/* Analytics chart bar hover */
+.analytics-bar{transition:opacity .2s,background .2s}
+.analytics-bar:hover{opacity:1!important;background:var(--t1)!important}
+
+@media(min-width:768px){
+  .stat-grid{grid-template-columns:repeat(4,1fr)}
+  .drawer{max-width:500px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div><h1>RareIDs Panel</h1></div>
+  <div style="display:flex;gap:8px"><button class="btn btn-sm btn-ghost" onclick="lockPanel()">Lock</button><button class="btn btn-sm btn-out" onclick="refreshView()">Refresh</button></div>
+</div>
+
+<div class="tabs" id="tabs">
+  <div class="tab active" data-v="dashboard">Dashboard</div>
+  <div class="tab" data-v="analytics">Analytics</div>
+  <div class="tab" data-v="users">Users</div>
+  <div class="tab" data-v="inventory">Inventory</div>
+  <div class="tab" data-v="transactions">Transactions</div>
+  <div class="tab" data-v="promos">Promos</div>
+  <div class="tab" data-v="security">Security</div>
+  <div class="tab" data-v="settings">Settings</div>
+</div>
+
+<div class="main">
+  <div id="v-dashboard" class="view active"><div class="stat-grid" id="dash-stats"></div></div>
+  <div id="v-analytics" class="view"></div>
+  <div id="v-users" class="view"></div>
+  <div id="v-inventory" class="view"></div>
+  <div id="v-transactions" class="view"></div>
+  <div id="v-promos" class="view"></div>
+  <div id="v-security" class="view"></div>
+  <div id="v-settings" class="view"></div>
+</div>
+
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer"></div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
+  <div class="modal-box" id="modal-box" onclick="event.stopPropagation()"></div>
+</div>
+
+<div id="bulk-bar"><span id="bulk-count">0</span><button class="bulk-btn" onclick="bulkSetStatus('available')">Available</button><button class="bulk-btn" onclick="bulkSetStatus('hidden')">Hide</button><button class="bulk-btn bulk-delete" onclick="bulkDelete()">Delete</button><button class="bulk-btn" onclick="clearSelection()">Cancel</button></div>
+
+<script>
+// ===============================
+// RareIDs Admin (API-based)
+// ===============================
+const API = 'https://web-uid.onrender.com/api';
+const tokenKey = 'rareids_admin_token';
+
+let state = { token: localStorage.getItem(tokenKey) || '' };
+let currentView = 'dashboard';
+
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+const esc = (s) => { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; };
+
+function authHeaders() {
+  const hdr = { 'Content-Type': 'application/json' };
+  if (state.token) hdr.Authorization = 'Bearer ' + state.token;
+  return hdr;
+}
+
+async function api(path, options = {}) {
+  const res = await fetch(API + path, {
+    headers: authHeaders(),
+    ...options,
+  });
+  return res.json();
+}
+
+function setLoading(targetEl, on, text = 'Loading...') {
+  if (!targetEl) return;
+  if (on) targetEl.dataset.loading = '1';
+  if (on) targetEl.innerHTML = `<div style="padding:20px;color:var(--t3);font-weight:600">${esc(text)}</div>`;
+}
+
+function showError(msg) {
+  const el = $('#admin-status');
+  if (el) el.textContent = msg || '';
+}
+
+function setAuthedUi(authed) {
+  const loginPanel = $('#login-panel');
+  const authedPanel = $('#authed-panel');
+  if (loginPanel) loginPanel.style.display = authed ? 'none' : 'block';
+  if (authedPanel) authedPanel.style.display = authed ? 'block' : 'none';
+}
+
+// ===============================
+// Auth
+// ===============================
+async function doLogin() {
+  const email = $('#admin-email')?.value?.trim() || '';
+  const password = $('#admin-password')?.value || '';
+
+  if (!email || !password) {
+    showError('Email dan password harus diisi');
+    return;
+  }
+
+  try {
+    showError('Logging in...');
+    const res = await api('/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', email, password }),
+    });
+
+    if (!res.success) throw new Error(res.error || 'Login gagal');
+
+    state.token = res.data?.token || '';
+    if (!state.token) throw new Error('Token tidak ditemukan');
+
+    localStorage.setItem(tokenKey, state.token);
+    showError('');
+    setAuthedUi(true);
+
+    // Load required sections
+    await Promise.all([
+      loadSummary(),
+      loadListings(),
+      loadUsersForBalance(),
+    ]);
+  } catch (e) {
+    state.token = '';
+    localStorage.removeItem(tokenKey);
+    setAuthedUi(false);
+    showError(e.message);
+  }
+}
+
+function doLogout() {
+  state.token = '';
+  localStorage.removeItem(tokenKey);
+  setAuthedUi(false);
+  showError('Logged out');
+
+  // Clear data
+  if ($('#listings-body')) $('#listings-body').innerHTML = '';
+  if ($('#dash-stats')) $('#dash-stats').innerHTML = '';
+  if ($('#select-user')) $('#select-user').innerHTML = '<option value="">Pilih User</option>';
+}
+
+// ===============================
+// Required Features
+// ===============================
+async function loadSummary() {
+  const res = await api('/admin/summary');
+  if (!res.success) throw new Error(res.error || 'Failed to load summary');
+
+  const { users, products, available, sold } = res.data || {};
+  $('#dash-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-val">${esc(users ?? 0)}</div><div class="stat-lbl">Total Users</div></div>
+    <div class="stat-card"><div class="stat-val">${esc(products ?? 0)}</div><div class="stat-lbl">Total Products</div></div>
+    <div class="stat-card"><div class="stat-val">${esc(available ?? 0)}</div><div class="stat-lbl">Available</div></div>
+    <div class="stat-card"><div class="stat-val">${esc(sold ?? 0)}</div><div class="stat-lbl">Sold</div></div>
+  `;
+}
+
+async function loadListings() {
+  const res = await api('/admin/listings');
+  if (!res.success) throw new Error(res.error || 'Failed to load listings');
+
+  const rows = (res.data || []).map((item) => {
+    const id = item.id;
+    const status = item.status || '-';
+    return `
+      <tr data-id="${esc(id)}">
+        <td class="col-id">${esc(id)}</td>
+        <td>${esc(item.ff_id || '-') }</td>
+        <td class="col-price">${item.price != null ? '$' + esc(item.price) : '-'}</td>
+        <td>${esc(item.category || '-') }</td>
+        <td><span class="pill pl-warn">${esc(status)}</span></td>
+        <td>${item.created_at ? esc(new Date(item.created_at).toLocaleString()) : '-'}</td>
+        <td style="text-align:right">
+          <button class="btn btn-sm btn-out" style="padding:8px 14px" onclick="deleteListingById('${esc(String(id))}')">Delete</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  const tbody = $('#listings-body');
+  if (tbody) tbody.innerHTML = rows || `<tr><td colspan="7" class="col-empty">No listings found</td></tr>`;
+}
+
+window.deleteListingById = async function deleteListingById(id) {
+  if (!id) return;
+  if (!confirm('Yakin hapus listing #' + id + '?')) return;
+
+  const btnText = 'Deleting...';
+  try {
+    showError('Deleting listing...');
+    const res = await api('/admin/listings/' + encodeURIComponent(id), { method: 'DELETE' });
+    if (!res.success) throw new Error(res.error || 'Gagal menghapus');
+
+    showError('');
+    await loadListings();
+    await loadSummary();
+  } catch (e) {
+    showError(e.message);
+  }
+};
+
+async function submitAddProduct(e) {
+  if (e) e.preventDefault();
+
+  const ff_id = $('#input-ffid')?.value?.trim() || '';
+  const price = $('#input-price')?.value;
+  const category = $('#input-category')?.value || '';
+  const status = $('#input-status')?.value || '';
+  const uid = $('#input-uid')?.value?.trim() || '';
+  const password = $('#input-password')?.value?.trim() || '';
+
+  const productStatus = $('#product-status');
+
+  if (!ff_id || !price) {
+    if (productStatus) productStatus.textContent = 'FF ID dan price wajib diisi!';
+    return;
+  }
+
+  if (!state.token) {
+    showError('Session expired');
+    return;
+  }
+
+  try {
+    if (productStatus) productStatus.textContent = 'Menambahkan...';
+    const res = await api('/admin/products', {
+      method: 'POST',
+      body: JSON.stringify({
+        ff_id,
+        price: parseFloat(price),
+        category,
+        status,
+        uid,
+        password,
+      }),
+    });
+
+    if (!res.success) throw new Error(res.error || 'Failed');
+
+    if (productStatus) {
+      productStatus.style.color = '#57d47b';
+      productStatus.textContent = 'Produk berhasil ditambahkan!';
+    }
+
+    // reset form minimal
+    if ($('#input-ffid')) $('#input-ffid').value = '';
+    if ($('#input-price')) $('#input-price').value = '';
+
+    await Promise.all([loadListings(), loadSummary()]);
+  } catch (e2) {
+    if (productStatus) productStatus.textContent = e2.message;
+  }
+}
+
+async function loadUsersForBalance() {
+  const res = await fetch(API + '/admin/users', { headers: authHeaders() });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to load users');
+
+  const select = $('#select-user');
+  if (!select) return;
+
+  select.innerHTML = '<option value="">Pilih User</option>';
+  (data.data || []).forEach((u) => {
+    const opt = document.createElement('option');
+    opt.value = u.id;
+    opt.textContent = `${u.full_name || u.name || ('User #' + u.id)} (${u.email || ''}) - $${u.balance ?? 0}`;
+    select.appendChild(opt);
+  });
+}
+
+async function submitAddBalance(e) {
+  if (e) e.preventDefault();
+
+  const user_id = $('#select-user')?.value || '';
+  const amount = $('#input-amount')?.value;
+  const balanceStatus = $('#balance-status');
+
+  if (!user_id || !amount) {
+    if (balanceStatus) balanceStatus.textContent = 'Pilih user dan masukkan amount!';
+    return;
+  }
+
+  try {
+    if (balanceStatus) balanceStatus.textContent = 'Menambahkan balance...';
+
+    const res = await api('/admin/add-balance', {
+      method: 'POST',
+      body: JSON.stringify({ user_id, amount: parseFloat(amount) }),
+    });
+
+    if (!res.success) throw new Error(res.error || 'Gagal menambah balance');
+
+    if (balanceStatus) {
+      balanceStatus.style.color = '#57d47b';
+      balanceStatus.textContent = 'Balance berhasil ditambahkan!';
+    }
+
+    if ($('#input-amount')) $('#input-amount').value = '';
+    await loadUsersForBalance();
+    await loadSummary();
+  } catch (e2) {
+    if (balanceStatus) balanceStatus.textContent = e2.message;
+  }
+}
+
+// ===============================
+// Views (only wire Dashboard features)
+// ===============================
+function showView(name) {
+  currentView = name;
+  $$('.tab').forEach((t) => t.classList.toggle('active', t.dataset.v === name));
+  $$('.view').forEach((v) => v.classList.remove('active'));
+  const v = $('#v-' + name);
+  if (v) v.classList.add('active');
+
+  if (name === 'dashboard' && state.token) {
+    initDashboard();
+  }
+}
+
+function refreshView() {
+  showView(currentView);
+}
+
+function lockPanel() {
+  localStorage.removeItem('rareids_adm_key');
+  location.reload();
+}
+
+async function initDashboard() {
+  try {
+    setAuthedUi(!!state.token);
+    if (!state.token) return;
+
+    await Promise.all([
+      loadSummary(),
+      loadListings(),
+    ]);
+  } catch (e) {
+    console.error(e);
+    doLogout();
+    showError(e.message);
+  }
+}
+
+function bindDashboardActions() {
+  $('#login-btn')?.addEventListener('click', (e) => { e?.preventDefault?.(); doLogin(); });
+  $('#logout-btn')?.addEventListener('click', (e) => { e?.preventDefault?.(); doLogout(); });
+  $('#add-product-form')?.addEventListener('submit', submitAddProduct);
+  $('#balance-form')?.addEventListener('submit', submitAddBalance);
+}
+
+// Inject minimal required DOM for Dashboard features if missing.
+function ensureDashboardStructure() {
+  const v = $('#v-dashboard');
+  if (!v) return;
+
+  // Login panel (inside dashboard view)
+  if (!$('#login-panel')) {
+    v.insertAdjacentHTML('afterbegin', `
+      <div id="login-panel" style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input id="admin-email" type="text" placeholder="Email" autocomplete="username" style="min-width:220px" />
+        <input id="admin-password" type="password" placeholder="Password" autocomplete="current-password" style="min-width:220px" />
+        <button id="login-btn" class="btn btn-fill">Login</button>
+        <button id="logout-btn" class="btn btn-out" style="display:none">Logout</button>
+      </div>
+      <div id="admin-status" style="color: #ff5a5a; font-weight:700; margin-bottom:12px; min-height:18px"></div>
+    `);
+  }
+
+  // Authed panel containing required dashboard features
+  if (!$('#authed-panel')) {
+    v.insertAdjacentHTML('beforeend', `
+      <div id="authed-panel" style="display:none">
+        <div class="stat-grid" id="dash-stats"></div>
+
+        <div style="height:14px"></div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+          <div style="font-weight:800;font-size:14px">FF ID Listings</div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>FF ID</th>
+                <th>Price</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th style="text-align:right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="listings-body"></tbody>
+          </table>
+        </div>
+
+        <div style="height:18px"></div>
+
+        <div style="display:flex;gap:18px;flex-wrap:wrap">
+          <form id="add-product-section" style="flex:1;min-width:320px" onsubmit="return false;">
+            <div style="font-weight:800;font-size:14px;margin-bottom:10px">Add Product</div>
+            <div class="frm-group"><label class="frm-label">FF ID</label><input id="input-ffid" placeholder="FF ID" /></div>
+            <div class="frm-group"><label class="frm-label">Price</label><input id="input-price" type="number" step="0.01" placeholder="Price (USD)" /></div>
+            <div class="frm-group"><label class="frm-label">Category</label>
+              <select id="input-category">
+                <option value="ID">ID</option>
+                <option value="SG">SG</option>
+                <option value="NA">NA</option>
+                <option value="EU">EU</option>
+              </select>
+            </div>
+            <div class="frm-group"><label class="frm-label">Status</label>
+              <select id="input-status">
+                <option value="AVAILABLE">AVAILABLE</option>
+                <option value="SOLD">SOLD</option>
+                <option value="ARCHIVED">ARCHIVED</option>
+              </select>
+            </div>
+            <div class="frm-group"><label class="frm-label">UID akun</label><input id="input-uid" placeholder="UID akun" /></div>
+            <div class="frm-group"><label class="frm-label">Password akun</label><input id="input-password" type="password" placeholder="Password akun" /></div>
+            <button class="btn btn-fill btn-block" type="submit" id="add-product-submit">Tambah Produk</button>
+            <div id="product-status" style="color: #ff5a5a; font-weight:700; margin-top:10px"></div>
+          </form>
+
+          <form id="balance-section" style="flex:1;min-width:320px" onsubmit="return false;">
+            <div style="font-weight:800;font-size:14px;margin-bottom:10px">Manage User Balance</div>
+            <div class="frm-group"><label class="frm-label">Pilih User</label>
+              <select id="select-user">
+                <option value="">Pilih User</option>
+              </select>
+            </div>
+            <div class="frm-group"><label class="frm-label">Amount (USD)</label>
+              <input id="input-amount" type="number" step="0.01" placeholder="Amount (USD)" />
+            </div>
+            <button class="btn btn-out btn-block" type="submit" id="add-balance-submit">Add Balance</button>
+            <div id="balance-status" style="color: #ff5a5a; font-weight:700; margin-top:10px"></div>
+          </form>
+        </div>
+      </div>
+    `);
+
+    // Convert forms to proper submit handlers expected by JS
+    // (bind by ids below)
+  }
+
+  // Ensure required buttons exist (bind after auth structure)
+  if ($('#add-product-section') && !$('#add-product-section').form) {
+    // no-op
+  }
+}
+
+// ===============================
+// Bootstrap
+// ===============================
+(function bootstrap() {
+  ensureDashboardStructure();
+
+  // hide authed ui by default
+  setAuthedUi(!!state.token);
+
+  bindDashboardActions();
+
+  // Patch submit listeners (because we used onsubmit="return false" in injected HTML)
+  $('#add-product-submit')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    submitAddProduct();
+  });
+  $('#add-balance-submit')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    submitAddBalance();
+  });
+
+  // Load dashboard if already authed
+  if (state.token) {
+    $('#logout-btn') && ($('#logout-btn').style.display = 'inline-flex');
+    $('#login-btn') && ($('#login-btn').style.display = 'none');
+    initDashboard();
+    // load users for balance dropdown
+    loadUsersForBalance().catch(()=>{});
+  } else {
+    $('#logout-btn') && ($('#logout-btn').style.display = 'none');
+    $('#login-btn') && ($('#login-btn').style.display = 'inline-flex');
+  }
+})();
+
+function showView(name){
+  currentView=name;
+  $$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.v===name));
+  $$('.view').forEach(v=>v.classList.remove('active'));
+  $('#v-'+name).classList.add('active');
+  closeDrawer();
+  if(name==='dashboard')initDashboard();
+  else if(name==='analytics')initAnalytics();
+  else if(name==='users')fetchUsers();
+  else if(name==='inventory')fetchInventory();
+  else if(name==='transactions')fetchTransactions();
+  else if(name==='promos')fetchPromos();
+  else if(name==='security')fetchSecurity();
+  else if(name==='settings')fetchSettings();
+}
+
+function refreshView(){showView(currentView)}
+function lockPanel(){localStorage.removeItem('rareids_adm_key');location.reload();}
+
+// DASHBOARD
+async function initDashboard(){
+  try{
+    const [u,la,ls,te,pr,ss,cu]=await Promise.all([
+      sb.from('users').select('balance,total_deposits,total_spends'),
+      sb.from('listings').select('*',{count:'exact',head:true}).eq('status','available'),
+      sb.from('listings').select('*',{count:'exact',head:true}).eq('status','sold'),
+      sb.from('tripwire_events').select('*',{count:'exact',head:true}),
+      sb.from('promo_code_redemptions').select('*',{count:'exact',head:true}),
+      sb.from('system_settings').select('*'),
+      sb.from('users').select('id').not('cart_items','eq','{}')
+    ]);
+    const us=u.data||[];
+    const ssMap={}; (ss.data||[]).forEach(s=>ssMap[s.key]=s.value);
+    const stats={
+      status:(ssMap.server_status||'open').toUpperCase(),
+      users:us.length,
+      revenue:us.reduce((s,x)=>s+parseFloat(x.total_spends||0),0).toFixed(0),
+      carts:cu.data?.length||0,
+      avail:la.count||0,
+      sold:ls.count||0,
+      alerts:te.count||0,
+      promos:pr.count||0
+    };
+    $('#dash-stats').innerHTML=`
+      <div class="stat-card"><div class="stat-val">${stats.status}</div><div class="stat-lbl">System</div></div>
+      <div class="stat-card"><div class="stat-val">${stats.users}</div><div class="stat-lbl">Users</div></div>
+      <div class="stat-card"><div class="stat-val">$${stats.revenue}</div><div class="stat-lbl">Revenue</div></div>
+      <div class="stat-card"><div class="stat-val">${stats.carts}</div><div class="stat-lbl">Active Carts</div></div>
+      <div class="stat-card"><div class="stat-val">${stats.avail}</div><div class="stat-lbl">Available</div></div>
+      <div class="stat-card"><div class="stat-val">${stats.sold}</div><div class="stat-lbl">Sold</div></div>
+      <div class="stat-card"><div class="stat-val">${stats.alerts}</div><div class="stat-lbl">Alerts</div></div>
+      <div class="stat-card"><div class="stat-val">${stats.promos}</div><div class="stat-lbl">Promos Used</div></div>`;
+  }catch(e){console.error(e)}
+}
+
+// ANALYTICS
+async function initAnalytics(){
+  $('#v-analytics').innerHTML='<div style="display:flex;align-items:center;justify-content:center;padding:60px 0"><div style="width:20px;height:20px;border:2px solid var(--t4);border-top-color:var(--t1);border-radius:50%;animation:spin .7s linear infinite"></div></div>';
+  try{
+    const [u,la,ls,tx,dps,prm,notif]=await Promise.all([
+      sb.from('users').select('user_id,name,email,status,cart_items,balance,total_spends,total_deposits,created_at,last_active_at').order('created_at',{ascending:false}),
+      sb.from('listings').select('status,price,tags').eq('status','available'),
+      sb.from('listings').select('status,price,tags,sold_at').eq('status','sold').order('sold_at',{ascending:false}),
+      sb.from('transactions').select('type,amount,created_at,user_id,users(name)').order('created_at',{ascending:false}),
+      sb.from('transactions').select('amount,users(user_id,name)',{count:'exact'}).eq('type','deposit').order('amount',{ascending:false}).limit(100),
+      sb.from('promo_code_redemptions').select('reward_value,created_at,promo_codes(code),users(name)').order('created_at',{ascending:false}).limit(50),
+      sb.from('notifications').select('*',{count:'exact',head:true})
+    ]);
+    const users=u.data||[], avail=la.data||[], sold=ls.data||[], txs=tx.data||[];
+    const promos=(prm && prm.data) ? prm.data : [];
+    const deposits=(dps && dps.data) ? dps.data : [];
+    const notifCount=(notif && notif.count) ? notif.count : 0;
+
+    const activeUsers=users.filter(x=>x.status==='active');
+    const newToday=users.filter(x=>new Date(x.created_at)>new Date(Date.now()-86400000)).length;
+    const newWeek=users.filter(x=>new Date(x.created_at)>new Date(Date.now()-604800000)).length;
+
+    const totalRevenue=txs.filter(x=>x.type==='purchase').reduce((s,x)=>s+Math.abs(parseFloat(x.amount||0)),0);
+    const totalDeposits=txs.filter(x=>x.type==='deposit'||x.type==='promo_credit').reduce((s,x)=>s+parseFloat(x.amount||0),0);
+    const purchasesCount=txs.filter(x=>x.type==='purchase').length;
+    const avgOrder=purchasesCount?(totalRevenue/purchasesCount).toFixed(2):'0';
+    const avgPriceAvail=avail.length?(avail.reduce((s,x)=>s+parseFloat(x.price||0),0)/avail.length).toFixed(2):'0';
+    const soldAvg=sold.length?(sold.reduce((s,x)=>s+parseFloat(x.price||0),0)/sold.length).toFixed(2):'0';
+    const sellThrough=sold.length+avail.length?(sold.length/(sold.length+avail.length)*100).toFixed(1)+'%':'0%';
+
+    // Revenue timeline (from first purchase to latest)
+    const purchaseTxs=txs.filter(x=>x.type==='purchase');
+    const revByDay={}; purchaseTxs.forEach(t=>{const d=new Date(t.created_at).toISOString().slice(0,10);revByDay[d]=(revByDay[d]||0)+Math.abs(parseFloat(t.amount||0))});
+    const cntByDay={}; purchaseTxs.forEach(t=>{const d=new Date(t.created_at).toISOString().slice(0,10);cntByDay[d]=(cntByDay[d]||0)+1});
+    const allDaysSet=new Set([...Object.keys(revByDay),...Object.keys(cntByDay)]);
+    const dayBars=[...allDaysSet].sort().map(d=>({date:d,rev:revByDay[d]||0,cnt:cntByDay[d]||0}));
+    const maxRev=Math.max(...dayBars.map(d=>d.rev),1);
+    const revFirstDay=dayBars.length>0?dayBars[0].date:''; const revLastDay=dayBars.length>0?dayBars[dayBars.length-1].date:'';
+
+    // Cart analytics
+    const cartUsers=users.filter(x=>x.cart_items&&x.cart_items.length>0);
+    const allCartIds=[...new Set(cartUsers.flatMap(x=>x.cart_items||[]))];
+    let listingMap={};
+    if(allCartIds.length>0){
+      const {data:cl}=await sb.from('listings').select('account_id,price,status').in('account_id',allCartIds);
+      listingMap={}; (cl||[]).forEach(l=>{listingMap[l.account_id]={price:parseFloat(l.price||0),status:l.status}});
+    }
+    const cartData=cartUsers.map(u=>{
+      const items=(u.cart_items||[]).filter(Boolean);
+      const total=items.reduce((s,id)=>s+((listingMap[id]||{}).price||0),0);
+      const unavail=items.filter(id=>listingMap[id]&&listingMap[id].status!=='available').length;
+      return {uid:u.user_id,name:u.name,email:u.email,count:items.length,total:total.toFixed(2),unavail};
+    }).sort((a,b)=>parseFloat(b.total)-parseFloat(a.total));
+    const cartsWithValue=cartData.filter(x=>parseFloat(x.total)>0);
+    const cartTotalUsers=cartData.length, cartTotalValue=cartData.reduce((s,x)=>s+parseFloat(x.total),0).toFixed(2);
+    const abandonedCarts=cartData.filter(x=>parseFloat(x.total)>=20).length;
+
+    // User retention
+    const buyerIds=[...new Set(txs.filter(x=>x.type==='purchase').map(x=>x.user_id))];
+    const buyerCounts={}; txs.filter(x=>x.type==='purchase').forEach(t=>{buyerCounts[t.user_id]=(buyerCounts[t.user_id]||0)+1});
+    const repeatBuyers=Object.values(buyerCounts).filter(v=>v>1).length;
+    const oneTimeBuyers=buyerIds.length-repeatBuyers;
+
+    // Price brackets for available
+    const brackets={under1:0,b1to5:0,b5to15:0,b15to30:0,b30to50:0,over50:0};
+    avail.forEach(l=>{const p=parseFloat(l.price||0);if(p<1)brackets.under1++;else if(p<=5)brackets.b1to5++;else if(p<=15)brackets.b5to15++;else if(p<=30)brackets.b15to30++;else if(p<=50)brackets.b30to50++;else brackets.over50++});
+
+    // Top sold tags
+    const tagCounts={}; sold.forEach(l=>{(l.tags||[]).forEach(t=>{const k=t.trim().toLowerCase();if(k&&k!=='new'&&k!=='hot')tagCounts[k]=(tagCounts[k]||0)+1})});
+    const topTags=Object.entries(tagCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+    // Top spenders
+    const topSpenders=[...users].sort((a,b)=>parseFloat(b.total_spends||0)-parseFloat(a.total_spends||0)).slice(0,10);
+
+    // Top depositors
+    const depositorMap={}; (txs.filter(x=>x.type==='deposit')).forEach(t=>{depositorMap[t.user_id]=(depositorMap[t.user_id]||0)+parseFloat(t.amount||0)});
+    const topDepositors=Object.entries(depositorMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([uid,amt])=>{
+      const u=users.find(x=>x.id===uid||x.user_id===parseInt(uid));
+      return{name:u?u.name:'Unknown',uid:u?u.user_id:uid,total:amt.toFixed(2)};
+    });
+
+    // Recent purchases
+    const recentPurchases=txs.filter(x=>x.type==='purchase').slice(-8).reverse();
+    const latestSold=sold.slice(0,5);
+
+    // Signup timeline (by day)
+    const signupByDay={};
+    users.forEach(u=>{const d=new Date(u.created_at).toISOString().slice(0,10);signupByDay[d]=(signupByDay[d]||0)+1});
+    const signupDays=Object.entries(signupByDay).sort((a,b)=>a[0].localeCompare(b[0]));
+    const signupMax=Math.max(...Object.values(signupByDay),1);
+    const signupTotal=users.length;
+    const signupFirstDay=signupDays.length>0?signupDays[0][0]:'';
+    const signupLastDay=signupDays.length>0?signupDays[signupDays.length-1][0]:'';
+
+    // Cumulative signups
+    let cum=0; const cumData=signupDays.map(([d,c])=>{cum+=c;return{date:d,new:c,cum}});
+
+    // Activity levels
+    const nowTs=Date.now();
+    const active24h=users.filter(u=>u.last_active_at&&(nowTs-new Date(u.last_active_at))<86400000).length;
+    const active7d=users.filter(u=>u.last_active_at&&(nowTs-new Date(u.last_active_at))<604800000).length;
+    const active30d=users.filter(u=>u.last_active_at&&(nowTs-new Date(u.last_active_at))<2592000000).length;
+
+    // Most active users (activity score = purchases*10 + idle days penalty)
+    const activityScore=users.map(u=>{
+      const purchases=buyerCounts[u.id]||0;
+      const daysSince=u.last_active_at?Math.max(0,(nowTs-new Date(u.last_active_at))/86400000):365;
+      const score=purchases*10+Math.max(0,30-daysSince);
+      return{uid:u.user_id,name:u.name,purchases,score:Math.round(score),last:u.last_active_at?fmt(u.last_active_at):'Never',email:u.email};
+    }).filter(u=>u.score>0).sort((a,b)=>b.score-a.score).slice(0,10);
+
+    $('#v-analytics').innerHTML=`
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-val">$${totalRevenue.toFixed(0)}</div><div class="stat-lbl">Total Revenue</div></div>
+        <div class="stat-card"><div class="stat-val">${purchasesCount}</div><div class="stat-lbl">Purchases</div></div>
+        <div class="stat-card"><div class="stat-val">$${avgOrder}</div><div class="stat-lbl">Avg Order</div></div>
+        <div class="stat-card"><div class="stat-val">${sellThrough}</div><div class="stat-lbl">Sell-Through</div></div>
+        <div class="stat-card"><div class="stat-val">${newToday}</div><div class="stat-lbl">New Today</div></div>
+        <div class="stat-card"><div class="stat-val">${newWeek}</div><div class="stat-lbl">New This Week</div></div>
+        <div class="stat-card"><div class="stat-val">${cartTotalUsers}</div><div class="stat-lbl">Active Carts</div></div>
+        <div class="stat-card"><div class="stat-val">$${cartTotalValue}</div><div class="stat-lbl">Cart Value Pending</div></div>
+        <div class="stat-card"><div class="stat-val">${repeatBuyers}</div><div class="stat-lbl">Repeat Buyers</div></div>
+        <div class="stat-card"><div class="stat-val">${oneTimeBuyers}</div><div class="stat-lbl">One-Time Buyers</div></div>
+        <div class="stat-card"><div class="stat-val">${notifCount}</div><div class="stat-lbl">Notifications</div></div>
+        <div class="stat-card"><div class="stat-val">${promos.length}</div><div class="stat-lbl">Promo Uses</div></div>
+      </div>
+
+      <div style="background:var(--s1);border-radius:var(--r);padding:20px;margin-bottom:16px" id="rev-chart-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+          <div style="font-weight:600;font-size:14px">Revenue Timeline — $${totalRevenue.toFixed(0)}</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="date" id="rev-from" value="${revFirstDay}" style="width:auto;font-size:11px;padding:6px 10px" onchange="filterRevChart()">
+            <span style="font-size:11px;color:var(--t3)">to</span>
+            <input type="date" id="rev-to" value="${revLastDay}" style="width:auto;font-size:11px;padding:6px 10px" onchange="filterRevChart()">
+            <button class="btn btn-sm btn-ghost" onclick="resetRevChart()">Reset</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto" id="rev-chart-container">
+          <div style="display:flex;align-items:flex-end;gap:2px;height:100px;min-width:${Math.max(dayBars.length*14,400)}px">${dayBars.map(d=>`
+            <div style="flex:1;min-width:10px;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%;justify-content:flex-end" title="${d.date} \u2014 $${d.rev.toFixed(2)} (${d.cnt} orders)">
+              <span style="font-size:9px;font-weight:600;color:var(--t1)">${d.rev>0?'$'+d.rev.toFixed(0):''}</span>
+              <div class="analytics-bar" style="width:100%;background:var(--t1);border-radius:2px 2px 0 0;height:${Math.max((d.rev/maxRev)*80,1)}%;min-height:1px;opacity:${d.rev>0?1:0.15}"></div>
+            </div>`).join('')}</div>
+        </div>
+      </div>
+
+      ${abandonedCarts>0?`<div class="stat-card" style="margin-bottom:16px;border-left:3px solid var(--t1);padding:14px 16px"><div style="font-weight:600;font-size:13px;margin-bottom:4px">Cart Abandonment Alert</div><div style="font-size:12px;color:var(--t2)">${abandonedCarts} users have carts worth $20+ but haven't checked out</div></div>`:''}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div style="background:var(--s1);border-radius:var(--r);padding:20px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:14px">Cart Overview</div>
+          <div class="table-wrap"><table><thead><tr><th>UID</th><th>User</th><th>Items</th><th>Value</th></tr></thead><tbody>${
+            cartsWithValue.length?cartsWithValue.slice(0,8).map(c=>{
+              const u=users.find(x=>x.user_id===c.uid);
+              const tooltip=u?esc((u.cart_items||[]).join(', ')):'';
+              const note=c.unavail>0?' style="opacity:0.5"':'';
+              return `<tr data-click title="${tooltip}"><td class="col-id">#${c.uid}</td><td${note}>${esc(c.name)}</td><td>${c.count}${c.unavail>0?' ⚠':''}</td><td class="col-price">$${parseFloat(c.total).toFixed(2)}</td></tr>`;
+            }).join(''):'<tr><td colspan="4" class="col-empty">No carts with value yet</td></tr>'
+          }</tbody></table></div>
+        </div>
+        <div style="background:var(--s1);border-radius:var(--r);padding:20px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:14px">Price Distribution (Available)</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${[{label:'< $1',val:brackets.under1},{label:'$1–5',val:brackets.b1to5},{label:'$5–15',val:brackets.b5to15},{label:'$15–30',val:brackets.b15to30},{label:'$30–50',val:brackets.b30to50},{label:'$50+',val:brackets.over50}].map(b=>`
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="width:55px;font-size:11px;color:var(--t2);text-align:right">${b.label}</span>
+                <div style="flex:1;height:18px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="width:${Math.round(b.val/avail.length*100)||0}%;height:100%;background:var(--t1);border-radius:4px;min-width:${b.val>0?'2px':'0'}"></div></div>
+                <span style="font-size:11px;font-weight:600;color:var(--t1);width:28px">${b.val}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div style="background:var(--s1);border-radius:var(--r);padding:20px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:14px">Top Spenders</div>
+          <div class="table-wrap"><table><thead><tr><th>UID</th><th>Name</th><th>Spent</th></tr></thead><tbody>${
+            topSpenders.map(u=>`<tr><td class="col-id">#${u.user_id}</td><td>${esc(u.name)}</td><td class="col-price">$${parseFloat(u.total_spends||0).toFixed(2)}</td></tr>`).join('')
+          }</tbody></table></div>
+        </div>
+        <div style="background:var(--s1);border-radius:var(--r);padding:20px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:14px">Top Depositors</div>
+          <div class="table-wrap"><table><thead><tr><th>UID</th><th>Name</th><th>Deposited</th></tr></thead><tbody>${
+            topDepositors.length?topDepositors.map(d=>`<tr><td class="col-id">#${d.uid}</td><td>${esc(d.name)}</td><td class="col-price">$${parseFloat(d.total).toFixed(2)}</td></tr>`).join(''):'<tr><td colspan="3" class="col-empty">No deposits yet</td></tr>'
+          }</tbody></table></div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div style="background:var(--s1);border-radius:var(--r);padding:20px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:14px">Top Sold Tags</div>
+          <div style="display:flex;flex-direction:column;gap:6px">${topTags.map(([tag,count])=>`
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;font-weight:500;color:var(--t1);width:80px;text-align:right;text-transform:capitalize">${esc(tag)}</span>
+              <div style="flex:1;height:16px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="width:${Math.round(count/topTags[0][1]*100)}%;height:100%;background:var(--t1);border-radius:4px"></div></div>
+              <span style="font-size:11px;color:var(--t2);width:28px">${count}</span>
+            </div>
+          `).join('')}${topTags.length===0?'<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No data yet</div>':''}</div>
+        </div>
+        <div style="background:var(--s1);border-radius:var(--r);padding:20px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:14px">Recent Purchases</div>
+          <div style="display:flex;flex-direction:column;gap:4px">${recentPurchases.map(t=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--t4);font-size:12px">
+              <span style="color:var(--t2)">${esc(t.users?.name||'User')}</span>
+              <span style="font-weight:700;color:rgba(255,255,255,.5)">-$${Math.abs(parseFloat(t.amount||0)).toFixed(2)}</span>
+              <span style="color:var(--t3);font-size:10px">${fmt(t.created_at)}</span>
+            </div>`).join('')}${recentPurchases.length===0?'<div style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No purchases yet</div>':''}</div>
+        </div>
+      </div>
+
+      <div style="background:var(--s1);border-radius:var(--r);padding:20px">
+        <div style="font-weight:600;font-size:14px;margin-bottom:14px">Inventory Summary</div>
+        <div class="stat-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:0">
+          <div class="stat-card"><div class="stat-val">${avail.length}</div><div class="stat-lbl">Available</div></div>
+          <div class="stat-card"><div class="stat-val">${sold.length}</div><div class="stat-lbl">Sold</div></div>
+          <div class="stat-card"><div class="stat-val">$${avgPriceAvail}</div><div class="stat-lbl">Avg Available</div></div>
+          <div class="stat-card"><div class="stat-val">$${soldAvg}</div><div class="stat-lbl">Avg Sold</div></div>
+          <div class="stat-card"><div class="stat-val">$${totalDeposits.toFixed(0)}</div><div class="stat-lbl">Total Deposits</div></div>
+          <div class="stat-card"><div class="stat-val">${activeUsers.length}</div><div class="stat-lbl">Active Users</div></div>
+        </div>
+      </div>
+
+      <div style="background:var(--s1);border-radius:var(--r);padding:20px;margin-bottom:16px" id="signup-chart-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+          <div style="font-weight:600;font-size:14px">Signup Timeline — ${signupTotal} total</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="date" id="su-from" value="${signupFirstDay}" style="width:auto;font-size:11px;padding:6px 10px" onchange="filterSignupChart()">
+            <span style="font-size:11px;color:var(--t3)">to</span>
+            <input type="date" id="su-to" value="${signupLastDay}" style="width:auto;font-size:11px;padding:6px 10px" onchange="filterSignupChart()">
+            <button class="btn btn-sm btn-ghost" onclick="resetSignupChart()">Reset</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto" id="signup-chart-container">
+          <div style="display:flex;align-items:flex-end;gap:2px;height:120px;min-width:${Math.max(signupDays.length*16,400)}px">${signupDays.map(([d,c])=>`
+            <div class="signup-bar" data-date="${d}" data-count="${c}" style="flex:1;min-width:12px;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%;justify-content:flex-end">
+              <span style="font-size:9px;font-weight:600;color:var(--t1)">${c}</span>
+              <div class="analytics-bar" style="width:100%;background:var(--t1);border-radius:2px 2px 0 0;height:${Math.max((c/signupMax)*90,2)}%;min-height:2px;opacity:0.8"></div>
+              <span style="font-size:8px;color:var(--t3);writing-mode:vertical-lr;transform:rotate(180deg);margin-top:4px;letter-spacing:0">${d.slice(5)}</span>
+            </div>`).join('')}</div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:16px;font-size:11px;color:var(--t2)">
+          <span>Peak: ${signupMax} on ${
+            (()=>{let m=0,d='';signupDays.forEach(([da,c])=>{if(c>m){m=c;d=da}});return d})()
+          }</span>
+          <span>Avg/Day: ${(signupTotal/Math.max(signupDays.length,1)).toFixed(1)}</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div style="background:var(--s1);border-radius:var(--r);padding:20px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:14px">User Activity</div>
+          <div class="stat-grid" style="grid-template-columns:1fr;margin-bottom:0">
+            <div class="stat-card"><div class="stat-val">${active24h}</div><div class="stat-lbl">Active Last 24h</div></div>
+            <div class="stat-card"><div class="stat-val">${active7d}</div><div class="stat-lbl">Active Last 7 Days</div></div>
+            <div class="stat-card"><div class="stat-val">${active30d}</div><div class="stat-lbl">Active Last 30 Days</div></div>
+          </div>
+        </div>
+        <div style="background:var(--s1);border-radius:var(--r);padding:20px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:14px">Most Active Users</div>
+          <div class="table-wrap"><table><thead><tr><th>UID</th><th>Name</th><th>Orders</th><th>Score</th></tr></thead><tbody>${
+            activityScore.length?activityScore.map(a=>`<tr data-click title="${esc(a.email)}\n${a.last}"><td class="col-id">#${a.uid}</td><td>${esc(a.name)}</td><td>${a.purchases}</td><td style="font-weight:700;color:${a.score>100?'var(--t1)':'var(--t2)'}">${a.score}</td></tr>`).join(''):'<tr><td colspan="4" class="col-empty">No activity yet</td></tr>'
+          }</tbody></table></div>
+        </div>
+      </div>
+
+      <div style="background:var(--s1);border-radius:var(--r);padding:20px;margin-bottom:16px">
+        <div style="font-weight:600;font-size:14px;margin-bottom:14px">Cumulative User Growth</div>
+        <div style="overflow-x:auto">
+          <div style="display:flex;align-items:flex-end;gap:2px;height:100px;min-width:${Math.max(cumData.length*16,400)}px">${cumData.map((d,i)=>`
+            <div style="flex:1;min-width:12px;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%;justify-content:flex-end">
+              <span style="font-size:9px;font-weight:600;color:var(--t1)">${d.cum}</span>
+              <div class="analytics-bar" style="width:100%;background:var(--t1);border-radius:2px 2px 0 0;height:${Math.max((d.cum/signupTotal)*90,2)}%;min-height:2px;opacity:0.6"></div>
+              ${i%5===0?`<span style="font-size:8px;color:var(--t3);writing-mode:vertical-lr;transform:rotate(180deg);margin-top:4px">${d.date.slice(5)}</span>`:''}
+            </div>`).join('')}</div>
+        </div>
+      </div>`;
+
+      window._signupDays = signupDays;
+      window._signupMax = signupMax;
+      window._dayBars = dayBars;
+      window._maxRev = maxRev;
+      window._revFirstDay = '${revFirstDay}';
+      window._revLastDay = '${revLastDay}';
+      window.filterSignupChart = function(){
+        const from=$('#su-from').value, to=$('#su-to').value;
+        const filtered=window._signupDays.filter(([d])=>d>=from&&d<=to);
+        const max=Math.max(...filtered.map(([,c])=>c),1);
+        $('#signup-chart-container').innerHTML=`
+          <div style="display:flex;align-items:flex-end;gap:2px;height:120px;min-width:${Math.max(filtered.length*16,400)}px">${filtered.map(([d,c])=>`
+            <div style="flex:1;min-width:12px;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%;justify-content:flex-end">
+              <span style="font-size:9px;font-weight:600;color:var(--t1)">${c}</span>
+              <div class="analytics-bar" style="width:100%;background:var(--t1);border-radius:2px 2px 0 0;height:${Math.max((c/max)*90,2)}%;min-height:2px;opacity:0.8"></div>
+              <span style="font-size:8px;color:var(--t3);writing-mode:vertical-lr;transform:rotate(180deg);margin-top:4px;letter-spacing:0">${d.slice(5)}</span>
+            </div>`).join('')}</div>`;
+      };
+      window.resetSignupChart = function(){
+        $('#su-from').value='${signupFirstDay}';$('#su-to').value='${signupLastDay}';
+        window.filterSignupChart();
+      };
+      window.filterRevChart = function(){
+        const from=$('#rev-from').value, to=$('#rev-to').value;
+        const filtered=window._dayBars.filter(d=>d.date>=from&&d.date<=to);
+        const max=Math.max(...filtered.map(d=>d.rev),1);
+        $('#rev-chart-container').innerHTML=`
+          <div style="display:flex;align-items:flex-end;gap:2px;height:100px;min-width:${Math.max(filtered.length*14,400)}px">${filtered.map(d=>`
+            <div style="flex:1;min-width:10px;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%;justify-content:flex-end" title="${d.date} \u2014 $${d.rev.toFixed(2)} (${d.cnt} orders)">
+              <span style="font-size:9px;font-weight:600;color:var(--t1)">${d.rev>0?'$'+d.rev.toFixed(0):''}</span>
+              <div class="analytics-bar" style="width:100%;background:var(--t1);border-radius:2px 2px 0 0;height:${Math.max((d.rev/max)*80,1)}%;min-height:1px;opacity:${d.rev>0?1:0.15}"></div>
+            </div>`).join('')}</div>`;
+      };
+      window.resetRevChart = function(){
+        $('#rev-from').value=window._revFirstDay;$('#rev-to').value=window._revLastDay;
+        window.filterRevChart();
+      };
+
+    // Inject hover tooltip styles
+    if(!document.getElementById('analytics-style')){
+      const st=document.createElement('style'); st.id='analytics-style';
+      st.textContent=`@keyframes spin{to{transform:rotate(360deg)}}[title]{position:relative}[title]:hover::after{content:attr(title);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--s1);color:var(--t1);padding:6px 12px;border-radius:6px;font-size:11px;white-space:nowrap;z-index:50;border:1px solid var(--t4);margin-bottom:4px}`;
+      document.head.appendChild(st);
+    }
+  }catch(e){console.error(e);$('#v-analytics').innerHTML='<div style="text-align:center;padding:40px;color:var(--t2)">Failed to load analytics</div>';}
+}
+
+// USERS
+async function fetchUsers(){
+  const {data}=await sb.from('users').select('*').order('created_at',{ascending:false});
+  allUsers=data||[];
+  $('#v-users').innerHTML=`
+    <div class="search-row">
+      <input type="text" placeholder="Search users..." oninput="filterUsers(this.value)" id="user-search">
+      <select onchange="sortUsers(this.value)" id="user-sort" style="width:auto;flex:0"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="balance_high">Balance High</option><option value="balance_low">Balance Low</option><option value="name">Name A-Z</option></select>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>UID</th><th>Name</th><th>Balance</th><th>Status</th></tr></thead><tbody id="users-list"></tbody></table></div>`;
+  renderUsers(allUsers);
+}
+function renderUsers(list){
+  $('#users-list').innerHTML=list.length?list.map(u=>`
+    <tr data-click onclick="openUserDrawer('${u.id}')">
+      <td class="col-id">#${u.user_id}</td>
+      <td>${esc(u.name)}</td>
+      <td class="col-price">$${parseFloat(u.balance||0).toFixed(2)}</td>
+      <td><span class="pill pl-${u.status==='active'?'good':u.status==='deleted'?'bad':'warn'}">${u.status}</span></td>
+    </tr>`).join(''):'<tr><td colspan="4" class="col-empty">No users found</td></tr>';
+}
+function filterUsers(q){renderUsers(allUsers.filter(u=>JSON.stringify(u).toLowerCase().includes(q.toLowerCase())));}
+function sortUsers(v){
+  let sorted=[...allUsers];
+  if(v==='newest')sorted.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  else if(v==='oldest')sorted.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+  else if(v==='balance_high')sorted.sort((a,b)=>b.balance-a.balance);
+  else if(v==='balance_low')sorted.sort((a,b)=>a.balance-b.balance);
+  else if(v==='name')sorted.sort((a,b)=>a.name.localeCompare(b.name));
+  allUsers=sorted; renderUsers(allUsers);
+}
+
+async function openUserDrawer(id){
+  const u=allUsers.find(x=>x.id===id); if(!u)return; selectedUser=u;
+  const [crt,bgt,prm,ntf]=await Promise.all([
+    sb.from('listings').select('account_id,id').in('account_id',u.cart_items||[]),
+    sb.from('listings').select('*').eq('user_id',u.id).eq('status','sold'),
+    sb.from('promo_code_redemptions').select('reward_value,promo_codes(code)').eq('user_id',u.id),
+    sb.from('notifications').select('*').eq('user_id',u.id).order('created_at',{ascending:false})
+  ]);
+  const cartItems=crt.data||[], bought=bgt.data||[], promos=prm.data||[], notifs=ntf.data||[];
+  $('#drawer').innerHTML=`
+    <div class="drawer-h"><h3>${esc(u.name)}</h3><button class="btn btn-sm btn-ghost" onclick="closeDrawer()">Close</button></div>
+    <div class="drawer-b">
+      <div class="frm-group frm-row"><div><label class="frm-label">UID</label><input value="#${u.user_id}" disabled style="opacity:.5"></div><div><label class="frm-label">Status</label><input value="${u.status}" disabled style="opacity:.5"></div></div>
+      <div class="frm-group"><label class="frm-label">Name</label><input id="eu-name" value="${esc(u.name)}"></div>
+      <div class="frm-group"><label class="frm-label">Email</label><input id="eu-email" value="${esc(u.email)}"></div>
+      <div class="frm-group"><label class="frm-label">Mobile</label><input id="eu-mobile" value="${esc(u.mobile_number||'')}"></div>
+      <div class="frm-group"><label class="frm-label">Status</label><select id="eu-status"><option value="active"${u.status==='active'?' selected':''}>Active</option><option value="suspended"${u.status==='suspended'?' selected':''}>Suspended</option><option value="banned"${u.status==='banned'?' selected':''}>Banned</option><option value="deleted"${u.status==='deleted'?' selected':''}>Deleted</option></select></div>
+      <button class="btn btn-fill btn-block" onclick="saveUser()">Save</button>
+      <div style="height:1px;background:var(--t4);margin:16px 0"></div>
+      <div class="frm-group"><label class="frm-label">New Password (leave empty to keep)</label><div class="frm-row"><input type="password" id="eu-pass" placeholder="New password"><button class="btn btn-out btn-sm" onclick="resetUserPass()">Set</button></div></div>
+      <div style="height:1px;background:var(--t4);margin:16px 0"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-weight:600;font-size:14px">Balance</span><span style="font-size:18px;font-weight:700">$${parseFloat(u.balance||0).toFixed(2)}</span></div>
+      <div class="frm-row" style="margin-bottom:16px"><input type="number" id="eu-adj-amt" placeholder="Amount" step="0.01"><button class="btn btn-out btn-sm" onclick="adjustBalance()">Adjust</button></div>
+      <button class="btn btn-out btn-block" onclick="forceLogout()">Force Logout</button>
+      <div style="height:1px;background:var(--t4);margin:16px 0"></div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:8px">Cart (${cartItems.length})</div>
+      <div class="card-list">${cartItems.length?cartItems.map(c=>`<div class="card-item"><span class="col-id">${esc(c.account_id)}</span><span class="c-del" onclick="removeFromCart('${esc(c.account_id)}')">&times;</span></div>`).join(''):'<div class="card-item" style="color:var(--t3)">Empty</div>'}</div>
+      <div class="frm-row" style="margin-top:12px"><input id="eu-cart-add" placeholder="Account ID to add"><button class="btn btn-out btn-sm" onclick="forceAddToCart()">Add</button></div>
+      <div style="height:1px;background:var(--t4);margin:16px 0"></div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:8px">Purchases (${bought.length})</div>
+      <div class="card-list">${bought.length?bought.map(b=>`<div class="card-item"><span>${esc(b.account_id)}</span><span>$${b.price}</span><button class="btn btn-sm btn-ghost" onclick="refund('${b.id}')">Refund</button></div>`).join(''):'<div class="card-item" style="color:var(--t3)">None</div>'}</div>
+      <div style="height:1px;background:var(--t4);margin:16px 0"></div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:8px">Promos (${promos.length})</div>
+      <div class="card-list">${promos.length?promos.map(p=>`<div class="card-item"><span>${esc(p.promo_codes?.code||'')}</span><span>+$${p.reward_value}</span></div>`).join(''):'<div class="card-item" style="color:var(--t3)">None</div>'}</div>
+      <div style="height:1px;background:var(--t4);margin:16px 0"></div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:8px">Notifications</div>
+      <div class="frm-row" style="margin-bottom:12px"><input id="eu-nt-title" placeholder="Title"><input id="eu-nt-msg" placeholder="Message"><button class="btn btn-out btn-sm" onclick="sendNotif()">Send</button></div>
+      <div class="card-list">${notifs.length?notifs.map(n=>`<div class="card-item"><div><div style="font-weight:600;font-size:13px">${esc(n.title)}</div><div style="font-size:11px;color:var(--t2)">${esc(n.message)}</div></div><span class="c-del" onclick="delNotif('${n.id}')">&times;</span></div>`).join(''):'<div class="card-item" style="color:var(--t3)">None</div>'}</div>
+      <button class="btn btn-out btn-block" style="margin-top:20px;color:rgba(255,255,255,.4)" onclick="exportUser()">Export as JSON</button>
+    </div>`;
+  $('#drawer-overlay').classList.add('show'); $('#drawer').classList.add('show');
+}
+
+function closeDrawer(){$('#drawer-overlay').classList.remove('show');$('#drawer').classList.remove('show');selectedUser=null;selectedPromo=null}
+
+async function saveUser(){
+  if(!selectedUser)return;
+  await sb.from('users').update({name:$('#eu-name').value,email:$('#eu-email').value,mobile_number:$('#eu-mobile').value,status:$('#eu-status').value}).eq('id',selectedUser.id);
+  fetchUsers();closeDrawer();
+}
+async function resetUserPass(){
+  const pw=$('#eu-pass').value; if(!pw)return;
+  const hash=await bcrypt.hash(pw,10);
+  await sb.from('users').update({password_hash:hash}).eq('id',selectedUser.id);
+  $('#eu-pass').value=''; alert('Password updated');
+}
+async function forceLogout(){
+  await sb.from('users').update({session_ids:[]}).eq('id',selectedUser.id);
+  closeDrawer();
+}
+async function adjustBalance(){
+  const amt=parseFloat($('#eu-adj-amt').value||'0'); if(!amt)return;
+  const bal=parseFloat(selectedUser.balance);
+  await sb.from('users').update({balance:bal+amt}).eq('id',selectedUser.id);
+  await sb.from('transactions').insert({user_id:selectedUser.id,type:'deposit',amount:amt,balance_before:bal,balance_after:bal+amt});
+  $('#eu-adj-amt').value='';
+  openUserDrawer(selectedUser.id);
+}
+async function removeFromCart(aid){
+  const cart=selectedUser.cart_items.filter(x=>x!==aid);
+  await sb.from('users').update({cart_items:cart}).eq('id',selectedUser.id);
+  openUserDrawer(selectedUser.id);
+}
+async function forceAddToCart(){
+  const aid=$('#eu-cart-add').value.trim(); if(!aid)return;
+  const cart=[...(selectedUser.cart_items||[]),aid];
+  await sb.from('users').update({cart_items:cart}).eq('id',selectedUser.id);
+  $('#eu-cart-add').value='';
+  openUserDrawer(selectedUser.id);
+}
+async function refund(lid){
+  if(!confirm('Refund this purchase?'))return;
+  const {data:lst}=await sb.from('listings').select('price,user_id').eq('id',lid).single();
+  if(!lst)return;
+  const {data:buyer}=await sb.from('users').select('balance').eq('id',lst.user_id).single();
+  const bal=parseFloat(buyer?.balance||0), price=parseFloat(lst.price);
+  await sb.from('listings').update({status:'available',sold_at:null,user_id:null}).eq('id',lid);
+  await sb.from('users').update({balance:bal+price}).eq('id',lst.user_id);
+  await sb.from('transactions').insert({user_id:lst.user_id,type:'refund',amount:price,balance_before:bal,balance_after:bal+price});
+  openUserDrawer(selectedUser.id);
+}
+async function sendNotif(){
+  const t=$('#eu-nt-title').value.trim(), m=$('#eu-nt-msg').value.trim();
+  if(!t||!m)return;
+  await sb.from('notifications').insert({user_id:selectedUser.id,title:t,message:m});
+  $('#eu-nt-title').value='';$('#eu-nt-msg').value='';
+  openUserDrawer(selectedUser.id);
+}
+async function delNotif(nid){
+  await sb.from('notifications').delete().eq('id',nid);
+  openUserDrawer(selectedUser.id);
+}
+function exportUser(){
+  const b=new Blob([JSON.stringify(selectedUser,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=selectedUser.name+'.json';a.click();
+}
+
+// INVENTORY
+async function fetchInventory(){
+  const {data}=await sb.from('listings').select('*').order('created_at',{ascending:false});
+  allInventory=data||[]; inventorySel.clear();
+  $('#v-inventory').innerHTML=`
+    <div class="search-row">
+      <input type="text" placeholder="Search by ID or tags..." oninput="filterInventory(this.value)" id="inv-search">
+      <select onchange="sortInventory(this.value)" id="inv-sort" style="width:auto;flex:0"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="price_high">Price High</option><option value="price_low">Price Low</option></select>
+      <button class="btn btn-sm btn-out" onclick="openListingDrawer()">+ Add</button>
+    </div>
+    <div class="frm-row" style="margin-bottom:12px">
+      <button class="btn btn-sm btn-ghost" onclick="doCsvUpload()">Bulk CSV</button>
+      <button class="btn btn-sm btn-ghost" onclick="exportInventory()">Export CSV</button>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th style="width:32px"><input type="checkbox" id="sel-all" onchange="toggleSelectAll(this.checked)"></th><th>ID</th><th>Price</th><th>Status</th><th>Tags</th><th>Date</th></tr></thead><tbody id="inv-list"></tbody></table></div>`;
+  renderInventory(allInventory);
+}
+function renderInventory(list){
+  $('#inv-list').innerHTML=list.length?list.map(l=>`
+    <tr data-click>
+      <td><input type="checkbox" data-lid="${l.id}" onchange="toggleItem(this)"${inventorySel.has(l.id)?' checked':''}></td>
+      <td class="col-id" onclick="openListingDrawer('${l.id}')">${esc(l.account_id)}</td>
+      <td class="col-price">$${parseFloat(l.price||0).toFixed(2)}</td>
+      <td><span class="pill pl-${l.status==='available'?'good':l.status==='sold'?'bad':'warn'}">${l.status}</span></td>
+      <td style="font-size:11px;color:var(--t3);max-width:120px;overflow:hidden;text-overflow:ellipsis">${(l.tags||[]).join(', ')}</td>
+      <td style="font-size:12px;color:var(--t3)">${fmt(l.created_at)}</td>
+    </tr>`).join(''):'<tr><td colspan="6" class="col-empty">No listings found</td></tr>';
+  $('#sel-all').checked=false;
+  updateBulkBar();
+}
+function filterInventory(q){renderInventory(allInventory.filter(l=>[l.account_id,...(l.tags||[])].join(' ').toLowerCase().includes(q.toLowerCase())));}
+function sortInventory(v){
+  let sorted=[...allInventory];
+  if(v==='newest')sorted.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  else if(v==='oldest')sorted.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+  else if(v==='price_high')sorted.sort((a,b)=>b.price-a.price);
+  else if(v==='price_low')sorted.sort((a,b)=>a.price-b.price);
+  allInventory=sorted; renderInventory(allInventory);
+}
+function toggleSelectAll(chk){
+  const rows=$$('#inv-list tr'); inventorySel.clear();
+  if(chk)rows.forEach(r=>{const cb=r.querySelector('input[type=checkbox]');if(cb){inventorySel.add(cb.dataset.lid);cb.checked=true}});
+  else rows.forEach(r=>{const cb=r.querySelector('input[type=checkbox]');if(cb)cb.checked=false});
+  updateBulkBar();
+}
+function toggleItem(cb){if(cb.checked)inventorySel.add(cb.dataset.lid);else inventorySel.delete(cb.dataset.lid);updateBulkBar();}
+function updateBulkBar(){
+  const n=inventorySel.size;
+  $('#bulk-count').textContent=n+' selected';
+  $('#bulk-bar').classList.toggle('show',n>0);
+  $('#sel-all').checked=n>0&&n===$$('#inv-list input[type=checkbox]').length;
+}
+function clearSelection(){inventorySel.clear();renderInventory(allInventory)}
+async function bulkSetStatus(st){
+  const ids=[...inventorySel];
+  await sb.from('listings').update({status:st}).in('id',ids);
+  clearSelection();fetchInventory();
+}
+async function bulkDelete(){
+  if(!confirm('Delete '+inventorySel.size+' listings?'))return;
+  const ids=[...inventorySel];
+  await sb.from('listings').delete().in('id',ids);
+  clearSelection();fetchInventory();
+}
+async function openListingDrawer(id){
+  const l=id?allInventory.find(x=>x.id===id):{account_id:'',price:'',status:'available',tags:[],uid:'',password:'',id:''};
+  $('#drawer').innerHTML=`
+    <div class="drawer-h"><h3>${id?'Edit':'New'} Listing</h3><button class="btn btn-sm btn-ghost" onclick="closeDrawer()">Close</button></div>
+    <div class="drawer-b">
+      <div class="frm-group"><label class="frm-label">Account ID</label><input id="el-aid" value="${esc(l.account_id)}"></div>
+      <div class="frm-group"><label class="frm-label">Price (USD)</label><input type="number" step="0.01" id="el-price" value="${l.price}"></div>
+      <div class="frm-group"><label class="frm-label">Status</label><select id="el-status"><option value="available"${l.status==='available'?' selected':''}>Available</option><option value="sold"${l.status==='sold'?' selected':''}>Sold</option><option value="hidden"${l.status==='hidden'?' selected':''}>Hidden</option></select></div>
+      <div class="frm-group"><label class="frm-label">Tags (comma separated)</label><input id="el-tags" value="${esc((l.tags||[]).join(','))}"></div>
+      <div class="frm-group"><label class="frm-label">UID / Login</label><input id="el-uid" value="${esc(l.uid||'')}"></div>
+      <div class="frm-group"><label class="frm-label">Password</label><input id="el-pass" value="${esc(l.password||'')}"></div>
+      <input type="hidden" id="el-id" value="${l.id}">
+      <button class="btn btn-fill btn-block" onclick="saveListing()">Save</button>
+      ${id?`<button class="btn btn-ghost btn-block" style="margin-top:8px;color:rgba(255,255,255,.4)" onclick="deleteListing('${l.id}')">Delete</button>`:''}
+    </div>`;
+  $('#drawer-overlay').classList.add('show');$('#drawer').classList.add('show');
+}
+async function saveListing(){
+  const id=$('#el-id').value;
+  const data={
+    account_id:$('#el-aid').value,
+    price:parseFloat($('#el-price').value||'0'),
+    status:$('#el-status').value,
+    tags:$('#el-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
+    uid:$('#el-uid').value,
+    password:$('#el-pass').value
+  };
+  if(!data.account_id||!data.price)return;
+  if(id) await sb.from('listings').update(data).eq('id',id);
+  else await sb.from('listings').insert(data);
+  closeDrawer();fetchInventory();
+}
+async function deleteListing(id){
+  if(!confirm('Delete this listing?'))return;
+  await sb.from('listings').delete().eq('id',id);
+  closeDrawer();fetchInventory();
+}
+function doCsvUpload(){
+  const i=document.createElement('input'); i.type='file'; i.accept='.csv';
+  i.onchange=async e=>{
+    const f=e.target.files[0]; if(!f)return;
+    Papa.parse(f,{header:true,skipEmptyLines:true,complete:async r=>{
+      const rows=r.data.filter(x=>x.account_id&&x.price).map(x=>({account_id:x.account_id,price:parseFloat(x.price),status:x.status||'available',tags:(x.tags||'').split(',').map(t=>t.trim()).filter(Boolean),uid:x.uid||'',password:x.password||''}));
+      const {errors}=await sb.from('listings').upsert(rows,{onConflict:'account_id'});
+      if(errors)alert('Some rows failed');
+      fetchInventory();
+    }});
+  };
+  i.click();
+}
+function exportInventory(){
+  const csv=['account_id,price,status,tags,uid,password'];
+  allInventory.forEach(l=>csv.push([l.account_id,l.price,l.status,(l.tags||[]).join(';'),l.uid||'',l.password||''].join(',')));
+  const b=new Blob([csv.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='inventory.csv';a.click();
+}
+
+// TRANSACTIONS
+async function fetchTransactions(){
+  const {data}=await sb.from('transactions').select('*,users(name,email)').order('created_at',{ascending:false}).limit(200);
+  const txs=data||[];
+  $('#v-transactions').innerHTML=`
+    <div class="search-row"><input type="text" placeholder="Search by user, type..." oninput="filterTx(this.value)" id="tx-search"></div>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>User</th><th>Type</th><th>Amount</th><th>Before</th><th>After</th></tr></thead><tbody id="tx-list"></tbody></table></div>`;
+  window._txAll=txs; renderTx(txs);
+}
+function renderTx(list){
+  $('#tx-list').innerHTML=list.length?list.map(t=>`
+    <tr>
+      <td style="font-size:12px;color:var(--t3)">${fmt(t.created_at)}</td>
+      <td><span style="font-weight:600">${esc(t.users?.name||'')}</span><br><span style="font-size:11px;color:var(--t3)">${esc(t.users?.email||'')}</span></td>
+      <td><span class="pill pl-good">${t.type}</span></td>
+      <td style="font-weight:700;color:${t.amount>0?'var(--t1)':'rgba(255,255,255,.4)'}">${t.amount>0?'+':''}$${Math.abs(t.amount).toFixed(2)}</td>
+      <td style="font-size:12px;color:var(--t3)">$${parseFloat(t.balance_before).toFixed(2)}</td>
+      <td style="font-size:12px;color:var(--t3)">$${parseFloat(t.balance_after).toFixed(2)}</td>
+    </tr>`).join(''):'<tr><td colspan="6" class="col-empty">No transactions</td></tr>';
+}
+function filterTx(q){renderTx((window._txAll||[]).filter(t=>[t.users?.name,t.users?.email,t.type].join(' ').toLowerCase().includes(q.toLowerCase())));}
+
+// PROMOS
+async function fetchPromos(){
+  const {data}=await sb.from('promo_codes').select('*').order('created_at',{ascending:false});
+  const promos=data||[];
+  $('#v-promos').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><button class="btn btn-sm btn-fill" onclick="openPromoDrawer()">+ New Code</button></div>
+    <div class="table-wrap"><table><thead><tr><th>Code</th><th>Type</th><th>Reward</th><th>Usage</th><th>Status</th><th>Expires</th></tr></thead><tbody id="promo-list"></tbody></table></div>`;
+  window._promosAll=promos; renderPromos(promos);
+}
+function renderPromos(list){
+  $('#promo-list').innerHTML=list.length?list.map(p=>`
+    <tr data-click onclick="openPromoDrawer('${p.id}')">
+      <td class="col-id">${esc(p.code)}</td>
+      <td><span class="pill pl-good">${p.type}</span></td>
+      <td>${p.reward_type==='discount_percent'?p.reward_value+'%':'$'+p.reward_value}</td>
+      <td style="font-size:12px">${p.used_count}/${p.max_usage}</td>
+      <td><span class="pill pl-${p.status==='active'?'good':'warn'}">${p.status}</span></td>
+      <td style="font-size:12px;color:var(--t3)">${p.expires_at?fmt(p.expires_at):'Never'}</td>
+    </tr>`).join(''):'<tr><td colspan="6" class="col-empty">No promo codes</td></tr>';
+}
+async function openPromoDrawer(id){
+  selectedPromo=id?(window._promosAll||[]).find(x=>x.id===id):null;
+  const p=selectedPromo||{code:'',type:'coupon',reward_type:'discount_fixed',reward_value:'',max_usage:'',expires_at:'',status:'active',id:''};
+  let redHtml='';
+  if(id){
+    const {data:reds}=await sb.from('promo_code_redemptions').select('*,users(name,email),promo_codes(code)').eq('promo_code_id',id);
+    redHtml=`
+      <div style="height:1px;background:var(--t4);margin:16px 0"></div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:8px">Redemptions (${(reds||[]).length})</div>
+      <div class="card-list">${(reds||[]).length?(reds||[]).map(r=>`<div class="card-item"><div><div style="font-weight:600">${esc(r.users?.name||'')}</div><div style="font-size:11px;color:var(--t2)">${esc(r.users?.email||'')}</div></div><span>+$${r.reward_value}</span></div>`).join(''):'<div class="card-item" style="color:var(--t3)">None</div>'}</div>`;
+  }
+  $('#drawer').innerHTML=`
+    <div class="drawer-h"><h3>${id?'Edit':'New'} Promo</h3><button class="btn btn-sm btn-ghost" onclick="closeDrawer()">Close</button></div>
+    <div class="drawer-b">
+      <div class="frm-group"><label class="frm-label">Code</label><input id="ep-code" value="${esc(p.code)}"></div>
+      <div class="frm-group"><label class="frm-label">Type</label><select id="ep-type"><option value="coupon"${p.type==='coupon'?' selected':''}>Coupon (Discount)</option><option value="redeem"${p.type==='redeem'?' selected':''}>Redeem (Credit)</option></select></div>
+      <div class="frm-group"><label class="frm-label">Reward Type</label><select id="ep-rt"><option value="discount_fixed"${p.reward_type==='discount_fixed'?' selected':''}>Fixed Discount</option><option value="discount_percent"${p.reward_type==='discount_percent'?' selected':''}>Percent Discount</option><option value="wallet_credit"${p.reward_type==='wallet_credit'?' selected':''}>Wallet Credit</option></select></div>
+      <div class="frm-group"><label class="frm-label">Reward Value</label><input type="number" step="0.01" id="ep-val" value="${p.reward_value}"></div>
+      <div class="frm-group"><label class="frm-label">Max Usage</label><input type="number" id="ep-max" value="${p.max_usage}"></div>
+      <div class="frm-group"><label class="frm-label">Expires At (optional)</label><input type="datetime-local" id="ep-exp" value="${p.expires_at?new Date(p.expires_at).toISOString().slice(0,16):''}"></div>
+      <div class="frm-group"><label class="frm-label">Status</label><select id="ep-status"><option value="active"${p.status==='active'?' selected':''}>Active</option><option value="hidden"${p.status==='hidden'?' selected':''}>Hidden</option><option value="expired"${p.status==='expired'?' selected':''}>Expired</option></select></div>
+      <input type="hidden" id="ep-id" value="${p.id}">
+      <button class="btn btn-fill btn-block" onclick="savePromo()">Save</button>
+      ${id?`<button class="btn btn-ghost btn-block" style="margin-top:8px;color:rgba(255,255,255,.4)" onclick="deletePromo('${p.id}')">Delete</button>`:''}
+      ${redHtml}
+    </div>`;
+  $('#drawer-overlay').classList.add('show');$('#drawer').classList.add('show');
+}
+async function savePromo(){
+  const id=$('#ep-id').value;
+  const data={code:$('#ep-code').value,type:$('#ep-type').value,reward_type:$('#ep-rt').value,reward_value:parseFloat($('#ep-val').value||'0'),max_usage:parseInt($('#ep-max').value||'1'),expires_at:$('#ep-exp').value||null,status:$('#ep-status').value};
+  if(!data.code)return;
+  if(id)await sb.from('promo_codes').update(data).eq('id',id);
+  else await sb.from('promo_codes').insert(data);
+  closeDrawer();fetchPromos();
+}
+async function deletePromo(id){
+  if(!confirm('Delete this promo code?'))return;
+  await sb.from('promo_codes').delete().eq('id',id);
+  closeDrawer();fetchPromos();
+}
+
+// SECURITY
+async function fetchSecurity(){
+  const {data}=await sb.from('tripwire_events').select('*,users(name)').order('created_at',{ascending:false}).limit(200);
+  const evts=data||[];
+  $('#v-security').innerHTML=`
+    <div style="margin-bottom:12px"><button class="btn btn-sm btn-ghost" style="color:rgba(255,255,255,.4)" onclick="clearSecurity()">Clear All</button></div>
+    <div class="table-wrap"><table><thead><tr><th>Time</th><th>User</th><th>Event</th><th>IP</th></tr></thead><tbody id="sec-list"></tbody></table></div>`;
+  $('#sec-list').innerHTML=evts.length?evts.map(e=>`
+    <tr>
+      <td style="font-size:12px;color:var(--t3)">${fmt(e.created_at)}</td>
+      <td>${esc(e.users?.name||'')}</td>
+      <td style="font-weight:600">${esc(e.event_type)}</td>
+      <td style="font-size:12px;color:var(--t3)">${esc(e.ip_address||'')}</td>
+    </tr>`).join(''):'<tr><td colspan="4" class="col-empty">No events</td></tr>';
+}
+async function clearSecurity(){
+  if(!confirm('Delete all security logs?'))return;
+  await sb.from('tripwire_events').delete().neq('id','00000000-0000-0000-0000-000000000000');
+  fetchSecurity();
+}
+
+// SETTINGS
+async function fetchSettings(){
+  const {data}=await sb.from('system_settings').select('*');
+  const m={}; (data||[]).forEach(s=>m[s.key]=s.value);
+  $('#v-settings').innerHTML=`
+    <div style="background:var(--s1);border-radius:var(--r);padding:20px;margin-bottom:16px">
+      <div style="font-weight:600;font-size:14px;margin-bottom:16px">Maintenance Mode</div>
+      <div class="frm-group"><label class="frm-label">Server Status</label><select id="ss-status"><option value="open"${m.server_status==='open'?' selected':''}>Open (Live)</option><option value="maintenance"${m.server_status==='maintenance'?' selected':''}>Maintenance</option></select></div>
+      <div class="frm-group"><label class="frm-label">Server Message</label><input id="ss-msg" value="${esc(m.server_message||'')}" placeholder="Message shown during maintenance"></div>
+      <button class="btn btn-fill btn-block" onclick="saveSettings()">Save</button>
+    </div>`;
+}
+async function saveSettings(){
+  const status=$('#ss-status').value, msg=$('#ss-msg').value;
+  await sb.from('system_settings').upsert({key:'server_status',value:status},{onConflict:'key'});
+  await sb.from('system_settings').upsert({key:'server_message',value:msg},{onConflict:'key'});
+  fetchSettings();
+}
+
+// MODAL (nuke confirmations)
+function closeModal(){$('#modal-overlay').classList.remove('show')}
+function openConfirm(title,msg,cb){
+  $('#modal-box').innerHTML=`<h3>${title}</h3><p>${msg}</p><input id="modal-confirm-input" placeholder="Type DELETE_MY_ACCOUNT to confirm" style="margin-bottom:12px;text-transform:uppercase;font-weight:600;letter-spacing:.06em;text-align:center"><button class="btn btn-fill btn-block" id="modal-confirm-btn" disabled onclick="runConfirm()">Confirm</button><button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="closeModal()">Cancel</button>`;
+  window._confirmCb=cb;
+  $('#modal-confirm-input').addEventListener('input',function(){document.getElementById('modal-confirm-btn').disabled=this.value!=='DELETE_MY_ACCOUNT'});
+  $('#modal-overlay').classList.add('show');
+}
+window.runConfirm=function(){closeModal();if(window._confirmCb)window._confirmCb();};
+</script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"9ab9ba83bba643b499971ca329071ec1","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
