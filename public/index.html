@@ -3608,6 +3608,12 @@
         const loader = document.getElementById('topup-options-loader');
         const grid = document.getElementById('topup-amount-grid');
         try {
+          if (!state.token) {
+            loader.style.display = 'none';
+            grid.innerHTML = '<p style="text-align:center;color:var(--text2);font-size:12px;">Sila log masuk untuk topup.</p>';
+            grid.style.display = 'block';
+            return;
+          }
           const r = await apiCall('GET', '/topup/options');
           loader.style.display = 'none';
           if (!r || !r.success) {

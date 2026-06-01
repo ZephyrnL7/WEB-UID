@@ -19,7 +19,7 @@ function formatMoney(value) {
   return Number(value).toFixed(2)
 }
 
-router.get('/options', auth, async (req, res) => {
+router.get('/options', async (req, res) => {
   try {
     const options = TOPUP_AMOUNTS.map(amount => {
       const fee = Number((amount * 0.02).toFixed(2))
